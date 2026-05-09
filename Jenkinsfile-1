@@ -1,0 +1,58 @@
+pipeline {
+    agent {
+        node {
+            label 'dockerhost-build-server'
+        }
+    }
+
+    tools {
+        maven 'maven-3.9.6'
+    }
+
+    stages {
+
+        stage('Packaging') {
+            steps {
+                echo 'Packaging...'
+                sh 'mvn clean package'
+            }
+        }
+
+        stage('Build image') {
+            steps {
+                echo 'Building Docker image...'
+                sh 'docker build -t jago13/campaign-demo:v1 --label campaign-demo-server .'
+            }
+        }
+
+        stage('Docker Hub Login') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'devops-dockerhub-token',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )
+                ]) {
+                    sh '''
+                    echo "$DOCKER_PASSWORD" | \
+                    docker login -u "$DOCKER_USER" --password-stdin
+                    '''
+                }
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                echo 'Pushing image to Docker Hub...'
+                sh 'docker push docker.io/jago13/campaign-demo:v1'
+            }
+        }
+
+        stage('Docker Logout') {
+            steps {
+                sh 'docker logout || true'
+            }
+        }
+    }
+}
